@@ -32,18 +32,36 @@ async function run() {
       res.send(result);
     });
 
+    // get all parcels via email
+    app.get("/parcels", async (req, res) => {
+      try {
+        const userEmail = req.query.email;
+
+        const query = userEmail ? { created_by: userEmail } : {};
+        const options = {
+          sort: { orderTime: -1 }, // Sort newest to oldest
+        };
+
+        const result = await parcelsCollection.find(query, options).toArray();
+        res.send(result);
+      } catch (error) {
+        console.error("Error fetching parcels:", error);
+        res.status(500).send({ error: "Failed to fetch parcels" });
+      }
+    });
+
     app.post("/parcels", async (req, res) => {
       const parcel = req.body;
 
       // Add tracking ID and order time
-    //   parcel.trackingId = uuidv4();
+      //   parcel.trackingId = uuidv4();
       parcel.orderTime = new Date();
 
       try {
         const result = await parcelsCollection.insertOne(parcel);
         res.status(201).send({
           message: "Parcel created successfully",
-        //   trackingId: parcel.trackingId,
+          //   trackingId: parcel.trackingId,
           insertedId: result.insertedId,
         });
       } catch (error) {
