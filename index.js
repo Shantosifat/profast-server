@@ -69,6 +69,30 @@ async function run() {
         res.status(500).send({ error: "Failed to create parcel" });
       }
     });
+
+    // delete order according to id
+    app.delete("/parcels/:id", async (req, res) => {
+      const id = req.params.id;
+
+      try {
+        const result = await parcelsCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+
+        if (result.deletedCount === 0) {
+          return res.status(404).send({ message: "Parcel not found" });
+        }
+
+        res.send({
+          result,
+          deletedCount: result.deletedCount,
+        });
+      } catch (error) {
+        console.error("Error deleting parcel:", error);
+        res.status(500).send({ error: "Failed to delete parcel" });
+      }
+    });
+
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log(
