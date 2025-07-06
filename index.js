@@ -27,6 +27,7 @@ async function run() {
     const database = client.db("parcelDB");
     const parcelsCollection = database.collection("parcels");
     const paymentsCollection = database.collection("payments");
+    const trackingCollection = database.collection("tracking");
 
     // GET /parcels - fetch all parcels or filter by email query param
     app.get("/parcels", async (req, res) => {
@@ -81,6 +82,52 @@ async function run() {
       }
     });
 
+    // FOR TRACKING
+
+    app.post("/tracking", async (req, res) => {
+      const {
+        tracking_id,
+        parcel_id,
+        status,
+        message,
+        updated_by = "",
+      } = req.body;
+
+      const log = {
+        tracking_id,
+        parcel_id: parcel_id ? new ObjectId(parcel_id) : undefined,
+        status,
+        time: new Date().toISOString(),
+        message,
+        updated_by,
+      };
+
+      const result = await trackingCollection.insertOne(log);
+      res.send({ result, success: true, insertedId: result.insertedId });
+    });
+
+    // FOR PAYMENT
+
+    // Admin/User: Get payment history
+    app.get("/payments", async (req, res) => {
+      try {
+        const userEmail = req.query.email;
+
+        const filter = userEmail ? { email: userEmail } : {};
+        // latest hisotry first
+        const options = { sort: { paid_at: -1 } };
+
+        const payments = await paymentsCollection
+          .find(filter, options)
+          // .sort({ date: -1 }) // Newest first
+          .toArray();
+
+        res.send(payments);
+      } catch (error) {
+        res.status(500).send({ error: "Failed to retrieve payments." });
+      }
+    });
+
     // POST /create-payment-intent - for Stripe payments (assuming stripe initialized)
     app.post("/create-payment-intent", async (req, res) => {
       const amountinCents = req.body.amountinCents; // amount in cents
@@ -102,21 +149,21 @@ async function run() {
     });
 
     // After successful payment
-    app.post("/payment-success", async (req, res) => {
+    app.post("/payments", async (req, res) => {
       const {
-        paymentIntentId,
+        // paymentIntentId,
         paymentMethod,
         transactionId,
         parcelId,
         email,
         amount,
-        userName,
+        // userName,
       } = req.body;
 
       try {
         // 1. Update parcel
         const parcelUpdate = await parcelsCollection.updateOne(
-          { _id: parcelId },
+          { _id: new ObjectId(parcelId) },
           {
             $set: {
               payment_status: "paid",
@@ -133,9 +180,9 @@ async function run() {
         // 2. Add payment history
         const paymentDoc = {
           email,
-          userName,
+          // userName,
           amount,
-          paymentIntentId,
+          // paymentIntentId,
           transactionId,
           parcelId,
           paymentMethod,
@@ -152,26 +199,6 @@ async function run() {
         });
       } catch (error) {
         res.status(500).send({ error: "Failed to record payment." });
-      }
-    });
-
-    // Admin/User: Get payment history
-    router.get("/payments", async (req, res) => {
-      try {
-        const userEmail = req.query.email;
-
-        const filter = userEmail ? { email: userEmail } : {};
-        // latest hisotry first
-        const options = { sort: { paid_at: -1 } };
-
-        const payments = await paymentsCollection
-          .find(filter, options)
-          // .sort({ date: -1 }) // Newest first
-          .toArray();
-
-        res.send(payments);
-      } catch (error) {
-        res.status(500).send({ error: "Failed to retrieve payments." });
       }
     });
 
