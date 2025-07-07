@@ -25,9 +25,41 @@ async function run() {
     await client.connect();
 
     const database = client.db("parcelDB");
+    const usersCollection = database.collection("users");
     const parcelsCollection = database.collection("parcels");
     const paymentsCollection = database.collection("payments");
     const trackingCollection = database.collection("tracking");
+
+    // users
+
+    app.post("/users", async (req, res) => {
+      const email = req.body.email;
+      const user = req.body;
+
+      const userExist = await usersCollection.findOne({ email });
+
+      if (userExist) {
+        // ✅ Update last login timestamp
+        await usersCollection.updateOne(
+          { email },
+          {
+            $set: {
+              last_log_in: new Date(),
+            },
+          }
+        );
+
+        return res
+          .status(200)
+          .send({ message: "User already exists", inserted: false });
+      }
+
+      // ✅ Set lastLogin for new user too (optional but useful)
+      user.last_log_in = new Date();
+
+      const result = await usersCollection.insertOne(user);
+      res.send(result);
+    });
 
     // GET /parcels - fetch all parcels or filter by email query param
     app.get("/parcels", async (req, res) => {
